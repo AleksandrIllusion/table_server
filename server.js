@@ -18,6 +18,96 @@ const pool = new Pool({
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
+// Получение казино по country_id
+app.get("/casinos/country/:country_id", async (req, res) => {
+  const { country_id } = req.params; // Извлекаем country_id из параметров
+  console.log(country_id);
+  try {
+    // Выполняем запрос для получения казино с указанным country_id
+    const result = await pool.query(
+      "SELECT * FROM casino WHERE country_id = $1",
+      [country_id]
+    );
+
+    if (result.rows.length > 0) {
+      console.log(result);
+      res.status(200).json(result.rows); // Возвращаем найденные казино
+    } else {
+      res
+        .status(404)
+        .json({ message: "No casinos found for the specified country_id" }); // Сообщение, если казино не найдены
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch casinos" }); // Обработка ошибок
+  }
+});
+// Изменение рейтинга казино с соседним казино с таким же country_id
+app.put("/casinos/:id/swap", async (req, res) => {
+  const { id } = req.params;
+  const { increase } = req.body; // Boolean значение (true - повышаем, false - понижаем)
+
+  try {
+    // Получаем текущее казино по ID
+    const casinoResult = await pool.query(
+      "SELECT * FROM casino WHERE id = $1",
+      [id]
+    );
+    if (casinoResult.rows.length === 0) {
+      return res.status(404).json({ error: "Casino not found" });
+    }
+
+    const currentCasino = casinoResult.rows[0];
+    const currentRate = currentCasino.casino_rate;
+    const countryId = currentCasino.country_id;
+
+    let neighborCasino;
+
+    if (increase) {
+      // Ищем казино с таким же country_id и ближайшим большим или равным рейтингом
+      neighborCasino = await pool.query(
+        `SELECT * FROM casino 
+         WHERE casino_rate >= $1 AND country_id = $2 AND id != $3 
+         ORDER BY casino_rate ASC LIMIT 1`,
+        [currentRate, countryId, id]
+      );
+    } else {
+      // Ищем казино с таким же country_id и ближайшим меньшим или равным рейтингом
+      neighborCasino = await pool.query(
+        `SELECT * FROM casino 
+         WHERE casino_rate <= $1 AND country_id = $2 AND id != $3 
+         ORDER BY casino_rate DESC LIMIT 1`,
+        [currentRate, countryId, id]
+      );
+    }
+
+    // Если нет соседнего казино, просто возвращаем сообщение
+    if (neighborCasino.rows.length === 0) {
+      return res
+        .status(400)
+        .json({ error: "No neighboring casino to swap rates with" });
+    }
+
+    const targetCasino = neighborCasino.rows[0];
+
+    // Обновляем рейтинг текущего казино на рейтинг соседнего
+    await pool.query("UPDATE casino SET casino_rate = $1 WHERE id = $2", [
+      targetCasino.casino_rate,
+      id,
+    ]);
+
+    // Обновляем рейтинг соседнего казино на рейтинг текущего
+    await pool.query("UPDATE casino SET casino_rate = $1 WHERE id = $2", [
+      currentRate,
+      targetCasino.id,
+    ]);
+
+    res.status(200).json({ message: "Casino rates swapped successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to swap casino rates" });
+  }
+});
 
 // Создание нового казино
 app.post("/casinos", async (req, res) => {
