@@ -21,7 +21,7 @@ app.use(bodyParser.json());
 // Получение казино по country_id
 app.get("/casinos/country/:country_id", async (req, res) => {
   const { country_id } = req.params; // Извлекаем country_id из параметров
-  console.log(country_id);
+
   try {
     // Выполняем запрос для получения казино с указанным country_id
     const result = await pool.query(
@@ -30,7 +30,6 @@ app.get("/casinos/country/:country_id", async (req, res) => {
     );
 
     if (result.rows.length > 0) {
-      console.log(result);
       res.status(200).json(result.rows); // Возвращаем найденные казино
     } else {
       res
@@ -120,7 +119,7 @@ app.post("/casinos", async (req, res) => {
     link,
     logoimg,
   } = req.body; // Изменены имена полей
-  console.log(req.body);
+
   try {
     const result = await pool.query(
       "INSERT INTO casino (casino_name, casino_features, casino_bonus, casino_rate, country_id,link,logoimg) VALUES ($1, $2, $3, $4, $5,$6,$7) RETURNING *",
@@ -155,11 +154,10 @@ app.get("/casinos", async (req, res) => {
 // Получение казино по ID
 app.get("/casinos/:id", async (req, res) => {
   const { id } = req.params;
-  console.log(id);
+
   try {
     const result = await pool.query("SELECT * FROM casino WHERE id = $1", [id]);
     if (result.rows.length > 0) {
-      console.log(result.rows[0]);
       res.status(200).json(result.rows[0]);
     } else {
       res.status(404).json({ error: "Casino not found" });
