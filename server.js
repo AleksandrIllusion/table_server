@@ -21,16 +21,31 @@ app.use(bodyParser.json());
 // Получение казино по country_id
 app.get("/casinos/country/:country_id", async (req, res) => {
   const { country_id } = req.params; // Извлекаем country_id из параметров
+  const { limit = 10, page = 1 } = req.query; // Параметры пагинации с дефолтными значениями
+  const limitValue = parseInt(limit); // Количество записей на странице
+  const offset = (parseInt(page) - 1) * limitValue; // Смещение для страницы
 
   try {
-    // Выполняем запрос для получения казино с указанным country_id
+    // Выполняем запрос для получения казино с указанным country_id, с пагинацией
     const result = await pool.query(
-      "SELECT * FROM casino WHERE country_id = $1",
-      [country_id]
+      "SELECT * FROM casino WHERE country_id = $1 LIMIT $2 OFFSET $3",
+      [country_id, limitValue, offset]
     );
 
+    // Запрос для подсчета общего количества казино в выбранной стране
+    const countResult = await pool.query(
+      "SELECT COUNT(*) FROM casino WHERE country_id = $1",
+      [country_id]
+    );
+    const totalCount = parseInt(countResult.rows[0].count);
+
     if (result.rows.length > 0) {
-      res.status(200).json(result.rows); // Возвращаем найденные казино
+      res.status(200).json({
+        data: result.rows, // Возвращаем найденные казино
+        total: totalCount, // Общее количество казино для данного country_id
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalCount / limitValue),
+      });
     } else {
       res
         .status(404)
@@ -41,6 +56,7 @@ app.get("/casinos/country/:country_id", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch casinos" }); // Обработка ошибок
   }
 });
+
 // Изменение рейтинга казино с соседним казино с таким же country_id
 app.put("/casinos/:id/swap", async (req, res) => {
   const { id } = req.params;
@@ -142,9 +158,27 @@ app.post("/casinos", async (req, res) => {
 
 // Получение списка казино
 app.get("/casinos", async (req, res) => {
+  const { limit = 10, page = 1 } = req.query;
+  const limitValue = parseInt(limit);
+  const offset = (parseInt(page) - 1) * limitValue;
+
   try {
-    const result = await pool.query("SELECT * FROM casino");
-    res.status(200).json(result.rows);
+    // Запрос для получения данных с пагинацией
+    const result = await pool.query("SELECT * FROM casino LIMIT $1 OFFSET $2", [
+      limitValue,
+      offset,
+    ]);
+
+    // Запрос для подсчета общего количества записей
+    const countResult = await pool.query("SELECT COUNT(*) FROM casino");
+    const totalCount = parseInt(countResult.rows[0].count);
+
+    res.status(200).json({
+      data: result.rows,
+      total: totalCount,
+      currentPage: parseInt(page),
+      totalPages: Math.ceil(totalCount / limitValue),
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch casinos" });
@@ -157,6 +191,7 @@ app.get("/casinos/:id", async (req, res) => {
 
   try {
     const result = await pool.query("SELECT * FROM casino WHERE id = $1", [id]);
+
     if (result.rows.length > 0) {
       res.status(200).json(result.rows[0]);
     } else {
