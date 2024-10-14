@@ -134,11 +134,12 @@ app.post("/casinos", async (req, res) => {
     country_id,
     link,
     logoimg,
+    payment_id,
   } = req.body; // Изменены имена полей
 
   try {
     const result = await pool.query(
-      "INSERT INTO casino (casino_name, casino_features, casino_bonus, casino_rate, country_id,link,logoimg) VALUES ($1, $2, $3, $4, $5,$6,$7) RETURNING *",
+      "INSERT INTO casino (casino_name, casino_features, casino_bonus, casino_rate, country_id,link,logoimg,payment_id) VALUES ($1, $2, $3, $4, $5,$6,$7,$8) RETURNING *",
       [
         casino_name,
         casino_features,
@@ -147,6 +148,7 @@ app.post("/casinos", async (req, res) => {
         country_id,
         link,
         logoimg,
+        payment_id,
       ] // Изменены имена полей
     );
     res.status(201).json(result.rows[0]);
@@ -158,16 +160,17 @@ app.post("/casinos", async (req, res) => {
 
 // Получение списка казино
 app.get("/casinos", async (req, res) => {
-  const { limit = 10, page = 1 } = req.query;
+  const { limit = 10, page = 1, sort = "desc" } = req.query; // Новый параметр сортировки с дефолтным значением 'desc'
   const limitValue = parseInt(limit);
   const offset = (parseInt(page) - 1) * limitValue;
+  const orderDirection = sort.toLowerCase() === "asc" ? "ASC" : "DESC"; // Определяем направление сортировки
 
   try {
-    // Запрос для получения данных с пагинацией
-    const result = await pool.query("SELECT * FROM casino LIMIT $1 OFFSET $2", [
-      limitValue,
-      offset,
-    ]);
+    // Запрос для получения данных с пагинацией и сортировкой по casino_rate
+    const result = await pool.query(
+      `SELECT * FROM casino ORDER BY casino_rate ${orderDirection} LIMIT $1 OFFSET $2`,
+      [limitValue, offset]
+    );
 
     // Запрос для подсчета общего количества записей
     const countResult = await pool.query("SELECT COUNT(*) FROM casino");
@@ -214,10 +217,11 @@ app.put("/casinos/:id", async (req, res) => {
     country_id,
     link,
     logoimg,
+    payment_id,
   } = req.body; // Изменены имена полей
   try {
     const result = await pool.query(
-      "UPDATE casino SET casino_name = $1,link=$7,logoimg=$8, casino_features = $2, casino_bonus = $3, casino_rate = $4, country_id = $5 WHERE id = $6 RETURNING *",
+      "UPDATE casino SET casino_name = $1,link=$7,logoimg=$8,payment_id=$9, casino_features = $2, casino_bonus = $3, casino_rate = $4, country_id = $5 WHERE id = $6 RETURNING *",
       [
         casino_name,
         casino_features,
@@ -227,6 +231,7 @@ app.put("/casinos/:id", async (req, res) => {
         id,
         link,
         logoimg,
+        payment_id,
       ] // Изменены имена полей
     );
     if (result.rows.length > 0) {
