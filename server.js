@@ -21,14 +21,15 @@ app.use(bodyParser.json());
 // Получение казино по country_id
 app.get("/casinos/country/:country_id", async (req, res) => {
   const { country_id } = req.params; // Извлекаем country_id из параметров
-  const { limit = 10, page = 1 } = req.query; // Параметры пагинации с дефолтными значениями
+  const { limit = 10, page = 1, sort = "desc" } = req.query; // Параметры пагинации и сортировки
   const limitValue = parseInt(limit); // Количество записей на странице
   const offset = (parseInt(page) - 1) * limitValue; // Смещение для страницы
+  const orderDirection = sort.toLowerCase() === "asc" ? "ASC" : "DESC"; // Направление сортировки
 
   try {
-    // Выполняем запрос для получения казино с указанным country_id, с пагинацией
+    // Выполняем запрос для получения казино с указанным country_id, с пагинацией и сортировкой
     const result = await pool.query(
-      "SELECT * FROM casino WHERE country_id = $1 LIMIT $2 OFFSET $3",
+      `SELECT * FROM casino WHERE country_id = $1 ORDER BY casino_rate ${orderDirection} LIMIT $2 OFFSET $3`,
       [country_id, limitValue, offset]
     );
 
@@ -43,17 +44,17 @@ app.get("/casinos/country/:country_id", async (req, res) => {
       res.status(200).json({
         data: result.rows, // Возвращаем найденные казино
         total: totalCount, // Общее количество казино для данного country_id
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(totalCount / limitValue),
+        currentPage: parseInt(page), // Текущая страница
+        totalPages: Math.ceil(totalCount / limitValue), // Общее количество страниц
       });
     } else {
       res
         .status(404)
-        .json({ message: "No casinos found for the specified country_id" }); // Сообщение, если казино не найдены
+        .json({ message: "No casinos found for the specified country_id" });
     }
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to fetch casinos" }); // Обработка ошибок
+    res.status(500).json({ error: "Failed to fetch casinos" });
   }
 });
 
