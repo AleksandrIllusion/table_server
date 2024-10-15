@@ -57,6 +57,38 @@ app.get("/casinos/country/:country_id", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch casinos" });
   }
 });
+app.get("/payments", async (req, res) => {
+  const { limit = 10, page = 1, sort = "desc" } = req.query; // Параметры пагинации и сортировки
+  const limitValue = parseInt(limit); // Количество записей на странице
+  const offset = (parseInt(page) - 1) * limitValue; // Смещение для страницы
+  const orderDirection = sort.toLowerCase() === "asc" ? "ASC" : "DESC"; // Направление сортировки
+
+  try {
+    // Выполняем запрос для получения списка платежей с пагинацией и сортировкой
+    const result = await pool.query(
+      `SELECT id, paymenturl,payment_title FROM payment ORDER BY id ${orderDirection} LIMIT $1 OFFSET $2`,
+      [limitValue, offset]
+    );
+
+    // Запрос для подсчета общего количества записей в таблице payment
+    const countResult = await pool.query("SELECT COUNT(*) FROM payment");
+    const totalCount = parseInt(countResult.rows[0].count);
+
+    if (result.rows.length > 0) {
+      res.status(200).json({
+        data: result.rows, // Возвращаем найденные платежи
+        total: totalCount, // Общее количество записей
+        currentPage: parseInt(page), // Текущая страница
+        totalPages: Math.ceil(totalCount / limitValue), // Общее количество страниц
+      });
+    } else {
+      res.status(404).json({ message: "No payments found" });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch payments" });
+  }
+});
 
 // Изменение рейтинга казино с соседним казино с таким же country_id
 app.put("/casinos/:id/swap", async (req, res) => {
@@ -136,11 +168,28 @@ app.post("/casinos", async (req, res) => {
     link,
     logoimg,
     payment_id,
-  } = req.body; // Изменены имена полей
+  } = req.body;
 
   try {
+    // Check if the casino with the same name already exists
+    const existingCasino = await pool.query(
+      "SELECT * FROM casino WHERE casino_name = $1",
+      [casino_name]
+    );
+
+    if (existingCasino.rows.length > 0) {
+      // Если казино с таким именем существует, возвращаем его имя
+      return res
+        .status(200)
+        .json({
+          message: "Casino already exists",
+          casino_name: existingCasino.rows[0].casino_name,
+        });
+    }
+
+    // If not, proceed to insert the new casino
     const result = await pool.query(
-      "INSERT INTO casino (casino_name, casino_features, casino_bonus, casino_rate, country_id,link,logoimg,payment_id) VALUES ($1, $2, $3, $4, $5,$6,$7,$8) RETURNING *",
+      "INSERT INTO casino (casino_name, casino_features, casino_bonus, casino_rate, country_id, link, logoimg, payment_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
       [
         casino_name,
         casino_features,
@@ -150,8 +199,9 @@ app.post("/casinos", async (req, res) => {
         link,
         logoimg,
         payment_id,
-      ] // Изменены имена полей
+      ]
     );
+
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error(err);
@@ -243,6 +293,24 @@ app.put("/casinos/:id", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to update casino" });
+  }
+});
+// Получение всех стран
+app.get("/countries", async (req, res) => {
+  try {
+    // Выполняем запрос для получения всех стран из таблицы country
+    const result = await pool.query(
+      "SELECT * FROM country ORDER BY country_name ASC"
+    );
+
+    if (result.rows.length > 0) {
+      res.status(200).json(result.rows); // Возвращаем список стран
+    } else {
+      res.status(404).json({ message: "No countries found" });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch countries" });
   }
 });
 
