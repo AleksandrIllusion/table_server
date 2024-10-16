@@ -7,12 +7,19 @@ const app = express();
 const port = 5000;
 
 // Настройка пула соединений для PostgreSQL
+// const pool = new Pool({
+//   user: "postgres", // Замените на ваш логин PostgreSQL
+//   host: "localhost",
+//   database: "table", // Замените на имя вашей базы данных
+//   password: "qwerty12345", // Замените на ваш пароль PostgreSQL
+//   port: 5432,
+// });
 const pool = new Pool({
-  user: "postgres", // Замените на ваш логин PostgreSQL
-  host: "localhost",
-  database: "table", // Замените на имя вашей базы данных
-  password: "qwerty12345", // Замените на ваш пароль PostgreSQL
-  port: 5432,
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT,
 });
 
 // Middleware
