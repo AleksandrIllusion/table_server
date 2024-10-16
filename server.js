@@ -179,12 +179,10 @@ app.post("/casinos", async (req, res) => {
 
     if (existingCasino.rows.length > 0) {
       // Если казино с таким именем существует, возвращаем его имя
-      return res
-        .status(200)
-        .json({
-          message: "Casino already exists",
-          casino_name: existingCasino.rows[0].casino_name,
-        });
+      return res.status(200).json({
+        message: "Casino already exists",
+        casino_name: existingCasino.rows[0].casino_name,
+      });
     }
 
     // If not, proceed to insert the new casino
@@ -337,3 +335,4 @@ app.delete("/casinos/:id", async (req, res) => {
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
+/*  */
