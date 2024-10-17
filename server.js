@@ -17,7 +17,7 @@ const pool = new Pool({
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
-// Получение казино по country_id
+
 app.get("/casinos/country/:country_id", async (req, res) => {
   const { country_id } = req.params; // Извлекаем country_id из параметров
   const { limit = 10, page = 1, sort = "desc" } = req.query; // Параметры пагинации и сортировки
