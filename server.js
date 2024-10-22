@@ -7,6 +7,9 @@ const app = express();
 const port = 5000;
 
 const pool = new Pool({
+  max: 20, // maximum number of connections
+  idleTimeoutMillis: 30000, // close idle clients after 30 seconds
+  connectionTimeoutMillis: 2000,
   user: process.env.DB_USER,
   host: process.env.DB_HOST,
   database: process.env.DB_NAME,
