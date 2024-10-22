@@ -2,6 +2,10 @@ const express = require("express");
 const { Pool } = require("pg");
 const bodyParser = require("body-parser");
 const cors = require("cors");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const passport = require("passport");
+const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 require("dotenv").config();
 const app = express();
 const port = 5000;
@@ -20,6 +24,156 @@ const pool = new Pool({
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
+// Секретный ключ для JWT
+const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_key";
+
+// Passport JWT Strategy
+passport.use(
+  new JwtStrategy(
+    {
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      secretOrKey: JWT_SECRET,
+    },
+    async (jwtPayload, done) => {
+      try {
+        // Поиск пользователя по id из JWT payload
+        const user = await pool.query(
+          "SELECT id, username, email, role FROM users WHERE id = $1",
+          [jwtPayload.id]
+        );
+
+        if (user.rows.length > 0) {
+          return done(null, user.rows[0]);
+        } else {
+          return done(null, false);
+        }
+      } catch (err) {
+        return done(err, false);
+      }
+    }
+  )
+);
+// Регистрация пользователя
+
+app.post("/register", async (req, res) => {
+  const { username, password, email, role } = req.body;
+
+  try {
+    // Проверяем, существует ли пользователь с таким email
+    const existingUser = await pool.query(
+      "SELECT * FROM users WHERE email = $1",
+      [email]
+    );
+
+    if (existingUser.rows.length > 0) {
+      return res
+        .status(400)
+        .json({ message: "User with this email already exists" });
+    }
+
+    // Хэшируем пароль
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Вставляем нового пользователя в базу данных
+    const newUser = await pool.query(
+      "INSERT INTO users (username, password, email, role) VALUES ($1, $2, $3, $4) RETURNING *",
+      [username, hashedPassword, email, role || false]
+    );
+
+    // Генерация JWT токена для нового пользователя
+    const token = jwt.sign(
+      {
+        id: newUser.rows[0].id,
+        username: newUser.rows[0].username,
+        role: newUser.rows[0].role,
+      },
+      JWT_SECRET,
+      {
+        expiresIn: "1h",
+      }
+    );
+
+    // Устанавливаем токен в HttpOnly куки
+    res.cookie("token", token, {
+      httpOnly: true, // Не доступен через JavaScript
+      secure: process.env.NODE_ENV === "production", // Только по HTTPS, если продакшн
+      maxAge: 3600000, // Время жизни куки (1 час)
+    });
+
+    res.status(201).json({ token: token });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Registration failed" });
+  }
+});
+
+// Логин пользователя
+app.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  try {
+    // Проверяем, существует ли пользователь с таким email
+    console.log(email);
+    const user = await pool.query("SELECT * FROM users WHERE email = $1", [
+      email,
+    ]);
+
+    if (user.rows.length === 0) {
+      // Возвращаем 200 и сообщение о неверных данных
+      return res.status(200).json({
+        message: "User with such email does not exist in the system",
+      });
+    }
+
+    // Сравниваем пароль
+    const validPassword = await bcrypt.compare(password, user.rows[0].password);
+
+    if (!validPassword) {
+      // Возвращаем 200 и сообщение о неверных данных
+      return res.status(200).json({
+        message: "User password is incorrect, please check and try again",
+      });
+    }
+
+    // Генерация JWT токена
+    const token = jwt.sign(
+      {
+        id: user.rows[0].id,
+        username: user.rows[0].username,
+        role: user.rows[0].role,
+      },
+      JWT_SECRET,
+      {
+        expiresIn: "1h",
+      }
+    );
+
+    // Устанавливаем токен в HttpOnly куки
+    res.cookie("token", token, {
+      httpOnly: true, // Не доступен через JavaScript
+      secure: process.env.NODE_ENV === "production", // Только по HTTPS в продакшн среде
+      maxAge: 3600000, // Время жизни куки (1 час)
+    });
+
+    res.status(200).json({ token: token });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Login failed" });
+  }
+});
+
+// Middleware для защищенных маршрутов с использованием Passport
+const authenticateJWT = passport.authenticate("jwt", { session: false });
+
+// Пример защищенного маршрута
+app.get("/profile", authenticateJWT, async (req, res) => {
+  try {
+    res.status(200).json(req.user); // req.user уже содержит данные пользователя после прохождения аутентификации
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch profile" });
+  }
+});
 
 app.get("/casinos/country/:country_id", async (req, res) => {
   const { country_id } = req.params; // Извлекаем country_id из параметров
@@ -49,6 +203,7 @@ app.get("/casinos/country/:country_id", async (req, res) => {
         currentPage: parseInt(page), // Текущая страница
         totalPages: Math.ceil(totalCount / limitValue), // Общее количество страниц
       });
+      console.log(result.rows);
     } else {
       res
         .status(404)
