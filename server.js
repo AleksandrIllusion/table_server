@@ -10,7 +10,7 @@ require("dotenv").config();
 const app = express();
 const port = 5000;
 
-const pool = new Pool({
+/* const pool = new Pool({
   max: 20, // maximum number of connections
   idleTimeoutMillis: 30000, // close idle clients after 30 seconds
   connectionTimeoutMillis: 2000,
@@ -19,6 +19,17 @@ const pool = new Pool({
   database: process.env.DB_NAME,
   password: process.env.DB_PASSWORD,
   port: process.env.DB_PORT,
+});
+ */
+const pool = new Pool({
+  max: 20, // maximum number of connections
+  idleTimeoutMillis: 30000, // close idle clients after 30 seconds
+  connectionTimeoutMillis: 2000,
+  user: "ub7rf2xa1vre7",
+  host: "35.214.171.213",
+  database: "postgres",
+  password: "10032018BakI",
+  port: "5432",
 });
 
 // Middleware
